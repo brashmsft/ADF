@@ -1,0 +1,138 @@
+{
+    "name": "Resume Synapse DW",
+    "properties": {
+        "activities": [
+            {
+                "name": "Resume Synapse DW",
+                "type": "WebActivity",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": "https://management.azure.com/subscriptions/24bd2eff-412b-441e-af3d-27ac77d7cdfc/resourceGroups/nilop-smcpurviewdemo-0221/providers/Microsoft.Synapse/workspaces/smcpurviewdemo-synapse/sqlPools/smcpurviewdemo/resume?api-version=2019-06-01-preview",
+                    "connectVia": {
+                        "referenceName": "AutoResolveIntegrationRuntime",
+                        "type": "IntegrationRuntimeReference"
+                    },
+                    "method": "POST",
+                    "authentication": {
+                        "type": "MSI",
+                        "resource": "https://management.core.windows.net"
+                    }
+                }
+            },
+            {
+                "name": "Loop Query Until Running",
+                "type": "Until",
+                "dependsOn": [
+                    {
+                        "activity": "Resume Synapse DW",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@bool(variables('IsRunning'))",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Check Connectivity",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "storedProcedureName": "[dbo].[CheckConnectivity]"
+                            },
+                            "linkedServiceName": {
+                                "referenceName": "SMC Purview Synapse Dedicated Pool",
+                                "type": "LinkedServiceReference"
+                            }
+                        },
+                        {
+                            "name": "Set True on Successful Connection",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Check Connectivity",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "IsRunning",
+                                "value": true
+                            }
+                        },
+                        {
+                            "name": "Set False on Failed Connection",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Check Connectivity",
+                                    "dependencyConditions": [
+                                        "Failed"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "IsRunning",
+                                "value": false
+                            }
+                        },
+                        {
+                            "name": "Wait 30 seconds before Retrying",
+                            "type": "Wait",
+                            "dependsOn": [
+                                {
+                                    "activity": "Set True on Successful Connection",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                {
+                                    "activity": "Set False on Failed Connection",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 30
+                            }
+                        }
+                    ],
+                    "timeout": "7.00:00:00"
+                }
+            }
+        ],
+        "variables": {
+            "IsRunning": {
+                "type": "Boolean"
+            }
+        },
+        "annotations": [],
+        "lastPublishTime": "2021-02-12T19:25:30Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
